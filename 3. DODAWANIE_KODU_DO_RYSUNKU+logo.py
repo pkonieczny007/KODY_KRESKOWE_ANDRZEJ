@@ -18,8 +18,8 @@ def pobierz_logo_z_url(url):
     else:
         raise Exception(f"Nie udało się pobrać logo z URL: {url}")
 
-# Funkcja do dodawania kodu kreskowego i logo do PDF
-def dodaj_kod_i_logo_do_pdf(plik_pdf, plik_png, sciezka_docelowa):
+# Funkcja do dodawania kodu kreskowego, logo i numeru zlecenia
+def dodaj_kod_logo_nr_do_pdf(plik_pdf, plik_png, sciezka_docelowa, numer_zlecenia=None):
     # Wczytanie pliku PDF
     pdf_reader = PdfReader(plik_pdf)
     pdf_writer = PdfWriter()
@@ -63,7 +63,7 @@ def dodaj_kod_i_logo_do_pdf(plik_pdf, plik_png, sciezka_docelowa):
     with open(tymczasowy_pdf, "wb") as output_pdf:
         pdf_writer.write(output_pdf)
 
-    # Teraz wczytujemy scalony PDF i dodajemy kod kreskowy i logo
+    # Teraz wczytujemy scalony PDF i dodajemy kod kreskowy, logo i numer zlecenia
     pdf_reader = PdfReader(tymczasowy_pdf)
     pdf_writer = PdfWriter()
 
@@ -84,24 +84,32 @@ def dodaj_kod_i_logo_do_pdf(plik_pdf, plik_png, sciezka_docelowa):
         image_logo = ImageReader(logo_img)
         can.drawImage(image_logo, x_position_logo, y_position_logo, width=logo_img_width, height=logo_img_height)
 
+        # Dodanie numeru zlecenia na środku u góry, jeśli został podany
+        if numer_zlecenia:
+            can.setFont("Helvetica", 20)  # Ustawienie wielkości czcionki na wysokość kodu kreskowego
+            text_width = can.stringWidth(numer_zlecenia, "Helvetica", barcode_img_height)
+            x_position_nr = (page_width - text_width) / 2  # Środek strony
+            y_position_nr = page_height + dodatkowy_obszar_roboczy - 30  # Na wysokości kodu kreskowego
+            can.drawString(x_position_nr, y_position_nr, numer_zlecenia)
+
         can.save()
 
-        # Dodajemy kod kreskowy i logo na wierzchu już scalonej strony
+        # Dodajemy kod kreskowy, logo i numer zlecenia na wierzchu już scalonej strony
         packet.seek(0)
         barcode_page = PdfReader(packet).pages[0]
         page.merge_page(barcode_page)
 
-        # Dodanie nowej strony z kodem kreskowym i logo do wynikowego PDF
+        # Dodanie nowej strony z kodem kreskowym, logo i numerem zlecenia do wynikowego PDF
         pdf_writer.add_page(page)
 
-    # Zapis nowego pliku PDF z kodem kreskowym i logo
+    # Zapis nowego pliku PDF z kodem kreskowym, logo i numerem zlecenia
     with open(sciezka_docelowa, "wb") as output_pdf:
         pdf_writer.write(output_pdf)
 
     # Usunięcie tymczasowego pliku
     os.remove(tymczasowy_pdf)
 
-    print(f"Zapisano plik z kodem kreskowym i logo jako: {sciezka_docelowa}")
+    print(f"Zapisano plik z kodem kreskowym, logo i numerem zlecenia jako: {sciezka_docelowa}")
 
 # Funkcja do dopasowania plików na podstawie części nazwy przed znakiem rozdzielającym
 def pobierz_glowna_nazwe(nazwa_pliku):
@@ -117,6 +125,9 @@ def przetwarzaj_rysunki_z_kodami(katalog_pdf, katalog_kody, katalog_docelowy):
     if not os.path.exists(katalog_docelowy):
         os.makedirs(katalog_docelowy)
 
+    # Pytamy o numer zlecenia
+    numer_zlecenia = input("Podaj numer zlecenia (lub naciśnij Enter, aby pominąć): ").strip() or None
+
     # Iterujemy po plikach PDF i dopasowujemy do nich odpowiednie pliki PNG z kodami
     for plik_pdf in os.listdir(katalog_pdf):
         if plik_pdf.endswith('.pdf'):
@@ -131,8 +142,8 @@ def przetwarzaj_rysunki_z_kodami(katalog_pdf, katalog_kody, katalog_docelowy):
                     sciezka_kreskowy_png = os.path.join(katalog_kody, plik_png)
                     sciezka_docelowa = os.path.join(katalog_docelowy, f"{nazwa_plik_pdf}+kod.pdf")  # Nowa nazwa pliku z kodem
 
-                    # Dodajemy kod kreskowy i logo do pliku PDF
-                    dodaj_kod_i_logo_do_pdf(sciezka_pdf, sciezka_kreskowy_png, sciezka_docelowa)
+                    # Dodajemy kod kreskowy, logo i numer zlecenia do pliku PDF
+                    dodaj_kod_logo_nr_do_pdf(sciezka_pdf, sciezka_kreskowy_png, sciezka_docelowa, numer_zlecenia)
                     break
             else:
                 print(f"Nie znaleziono pliku z kodem kreskowym dla: {plik_pdf}")
