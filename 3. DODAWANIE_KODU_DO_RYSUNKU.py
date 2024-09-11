@@ -20,8 +20,8 @@ def dodaj_kod_do_pdf(plik_pdf, plik_png, sciezka_docelowa):
     barcode_img_width //= 3
     barcode_img_height //= 3
 
-    # Wysokość dodatkowego obszaru roboczego pod rysunkiem
-    dodatkowy_obszar_roboczy = 200  # 200 jednostek przestrzeni
+    # Wysokość dodatkowego obszaru roboczego pod rysunkiem równa wysokości kodu kreskowego
+    dodatkowy_obszar_roboczy = barcode_img_height + 20  # Dodajemy 20 jednostek marginesu
 
     # Iteracja po stronach PDF
     for page_num, page in enumerate(pdf_reader.pages):
@@ -29,13 +29,11 @@ def dodaj_kod_do_pdf(plik_pdf, plik_png, sciezka_docelowa):
         page_width = page.mediabox.width
         page_height = page.mediabox.height
 
-        # Tworzymy nową stronę z większą wysokością
+        # Tworzymy nową stronę z większą wysokością tylko na dole, nie przesuwając rysunku w górę
         new_page = PageObject.create_blank_page(width=page_width, height=page_height + dodatkowy_obszar_roboczy)
 
-        # Przenosimy oryginalną stronę PDF na górę nowej strony i stosujemy transformację
-        transformation_matrix = [1, 0, 0, 1, 0, dodatkowy_obszar_roboczy]  # Przesunięcie w górę o dodatkowy obszar
-        page.add_transformation(transformation_matrix)  # Przesuwamy zawartość strony w górę
-        new_page.merge_page(page)  # Łączymy zmodyfikowaną stronę z nową stroną
+        # Łączymy oryginalną stronę z nową stroną bez przesuwania
+        new_page.merge_page(page)
 
         # Tworzymy nowe płótno do rysowania kodu kreskowego w dolnej części strony
         packet = io.BytesIO()
