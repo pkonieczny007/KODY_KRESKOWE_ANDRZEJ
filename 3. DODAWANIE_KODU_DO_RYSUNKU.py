@@ -1,13 +1,12 @@
 import os
 import io
-from PyPDF2 import PdfReader, PdfWriter
+from PyPDF2 import PdfReader, PdfWriter, PageObject
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from PIL import Image
 
-# Funkcja do dodawania kodu kreskowego do rysunku PDF
+# Funkcja do dodawania kodu kreskowego poniżej rysunku na tej samej stronie PDF
 def dodaj_kod_do_pdf(plik_pdf, plik_png, sciezka_docelowa):
     # Wczytanie pliku PDF
     pdf_reader = PdfReader(plik_pdf)
@@ -17,35 +16,45 @@ def dodaj_kod_do_pdf(plik_pdf, plik_png, sciezka_docelowa):
     barcode_img = Image.open(plik_png)
     barcode_img_width, barcode_img_height = barcode_img.size
 
-    # Zmniejszenie wielkości kodu kreskowego 3x
+    # Zmniejszenie wielkości kodu kreskowego o 3x
     barcode_img_width //= 3
     barcode_img_height //= 3
 
+    # Wysokość dodatkowego obszaru roboczego pod rysunkiem
+    dodatkowy_obszar_roboczy = 200  # 200 jednostek przestrzeni
+
     # Iteracja po stronach PDF
     for page_num, page in enumerate(pdf_reader.pages):
-        packet = io.BytesIO()
-        can = canvas.Canvas(packet, pagesize=letter)
-
-        # Pobieranie wymiary strony PDF
+        # Pobieranie wymiarów oryginalnej strony
         page_width = page.mediabox.width
         page_height = page.mediabox.height
 
-        # Pozycjonowanie kodu kreskowego poniżej rysunku (pod obrazem, ale wewnątrz strony)
-        x_position = (page_width - barcode_img_width) / 2  # Na środku strony
-        y_position = 10 * mm  # 10 mm od dolnej krawędzi strony
+        # Tworzymy nową stronę z większą wysokością
+        new_page = PageObject.create_blank_page(width=page_width, height=page_height + dodatkowy_obszar_roboczy)
 
-        # Rysowanie obrazu kodu kreskowego na stronie
+        # Przenosimy oryginalną stronę PDF na górę nowej strony i stosujemy transformację
+        transformation_matrix = [1, 0, 0, 1, 0, dodatkowy_obszar_roboczy]  # Przesunięcie w górę o dodatkowy obszar
+        page.add_transformation(transformation_matrix)  # Przesuwamy zawartość strony w górę
+        new_page.merge_page(page)  # Łączymy zmodyfikowaną stronę z nową stroną
+
+        # Tworzymy nowe płótno do rysowania kodu kreskowego w dolnej części strony
+        packet = io.BytesIO()
+        can = canvas.Canvas(packet, pagesize=(page_width, dodatkowy_obszar_roboczy))
+
+        # Pozycjonowanie kodu kreskowego w dodatkowej przestrzeni
+        x_position = (page_width - barcode_img_width) / 2  # Środek strony
+        y_position = 10  # 10 jednostek od dolnej krawędzi
         image = ImageReader(plik_png)
         can.drawImage(image, x_position, y_position, width=barcode_img_width, height=barcode_img_height)
         can.save()
 
-        # Ładowanie nowego PDF z kodem kreskowym
+        # Dodajemy kod kreskowy do dolnej części nowej strony PDF
         packet.seek(0)
-        new_pdf = PdfReader(packet)
-        page.merge_page(new_pdf.pages[0])
+        barcode_page = PdfReader(packet).pages[0]
+        new_page.merge_page(barcode_page)
 
-        # Dodawanie zmodyfikowanej strony do nowego pliku PDF
-        pdf_writer.add_page(page)
+        # Dodanie nowej strony do wynikowego PDF
+        pdf_writer.add_page(new_page)
 
     # Zapis nowego pliku PDF z kodem kreskowym
     with open(sciezka_docelowa, "wb") as output_pdf:
