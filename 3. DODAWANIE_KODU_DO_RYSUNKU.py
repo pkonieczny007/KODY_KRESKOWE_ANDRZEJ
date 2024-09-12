@@ -18,8 +18,8 @@ def pobierz_logo_z_url(url):
     else:
         raise Exception(f"Nie udało się pobrać logo z URL: {url}")
 
-# Funkcja do dodawania kodu kreskowego, logo i numeru zlecenia
-def dodaj_kod_logo_nr_do_pdf(plik_pdf, plik_png, sciezka_docelowa, numer_zlecenia=None):
+# Funkcja do dodawania kodu kreskowego, logo i numeru zlecenia do pliku PDF
+def dodaj_kod_logo_nr_do_pdf(plik_pdf, plik_png, sciezka_docelowa, numer_zlecenia=None, pusty=False):
     pdf_writer = PdfWriter()
 
     # Wczytanie obrazu z kodem kreskowym
@@ -42,13 +42,14 @@ def dodaj_kod_logo_nr_do_pdf(plik_pdf, plik_png, sciezka_docelowa, numer_zleceni
     dodatkowy_obszar_roboczy = barcode_img_height + 20
 
     # Sprawdzamy, czy plik PDF istnieje, jeśli nie, tworzymy pusty PDF
-    if os.path.exists(plik_pdf):
-        pdf_reader = PdfReader(plik_pdf)
-    else:
+    if pusty or not os.path.exists(plik_pdf):
+        print(f"Brak rysunku, tworzenie pliku z samym kodem kreskowym: {plik_pdf}")
         blank_page = PageObject.create_blank_page(width=210 * mm, height=297 * mm)
         pdf_writer.add_page(blank_page)
         with open(plik_pdf, "wb") as blank_pdf:
             pdf_writer.write(blank_pdf)
+        pdf_reader = PdfReader(plik_pdf)
+    else:
         pdf_reader = PdfReader(plik_pdf)
 
     # Stworzenie tymczasowego pliku PDF bez kodu
@@ -85,14 +86,17 @@ def dodaj_kod_logo_nr_do_pdf(plik_pdf, plik_png, sciezka_docelowa, numer_zleceni
         # Dodanie logo
         x_position_logo = page_width - logo_img_width
         y_position_logo = page_height + dodatkowy_obszar_roboczy - logo_img_height
-        image_logo = ImageReader(logo_img)
-        can.drawImage(image_logo, x_position_logo, y_position_logo, width=logo_img_width, height=logo_img_height)
+
+        x_position_logo = float(x_position_logo)
+        y_position_logo = float(y_position_logo)
+
+        can.drawImage(ImageReader(logo_img), x_position_logo, y_position_logo, width=logo_img_width, height=logo_img_height)
 
         # Dodanie numeru zlecenia, jeśli został podany
         if numer_zlecenia:
             can.setFont("Helvetica", 20)
-            x_position_nr = barcode_img_width + 5
-            y_position_nr = page_height + dodatkowy_obszar_roboczy - 30
+            x_position_nr = float(barcode_img_width + 5)  # Konwersja na float
+            y_position_nr = float(page_height + dodatkowy_obszar_roboczy - 30)  # Konwersja na float
             can.drawString(x_position_nr, y_position_nr, numer_zlecenia)
 
         can.save()
@@ -128,28 +132,26 @@ def przetwarzaj_kody_z_rysunkami(katalog_pdf, katalog_kody, katalog_docelowy):
             glowna_nazwa_png = pobierz_glowna_nazwe(os.path.splitext(plik_png)[0])
             
             # Szukamy rysunku PDF na podstawie głównej nazwy
-            # Zakładamy, że rysunek będzie miał format "glowna_nazwa_1.pdf"
             rysunek_pdf = None
             for plik_pdf in os.listdir(katalog_pdf):
                 if plik_pdf.startswith(glowna_nazwa_png) and plik_pdf.endswith('.pdf'):
                     rysunek_pdf = os.path.join(katalog_pdf, plik_pdf)
                     break
 
-            # Jeśli nie znaleziono rysunku, stworzymy pusty plik
+            # Jeśli nie znaleziono rysunku, ustalamy pusty rysunek
+            pusty = False
             if rysunek_pdf is None:
                 rysunek_pdf = os.path.join(katalog_docelowy, f"{glowna_nazwa_png}_empty.pdf")
-                # Tworzymy pustą stronę PDF (210x297 mm)
-                blank_page = PageObject.create_blank_page(width=210 * mm, height=297 * mm)
-                pdf_writer = PdfWriter()
-                pdf_writer.add_page(blank_page)
-                with open(rysunek_pdf, "wb") as blank_pdf:
-                    pdf_writer.write(blank_pdf)
+                pusty = True
 
             sciezka_kreskowy_png = os.path.join(katalog_kody, plik_png)
-            sciezka_docelowa = os.path.join(katalog_docelowy, f"{os.path.splitext(plik_png)[0]}+kod.pdf")
+            if pusty:
+                sciezka_docelowa = os.path.join(katalog_docelowy, f"{os.path.splitext(plik_png)[0]}_pusty+kod.pdf")
+            else:
+                sciezka_docelowa = os.path.join(katalog_docelowy, f"{os.path.splitext(plik_png)[0]}+kod.pdf")
 
             # Dodajemy kod kreskowy, logo i numer zlecenia do pliku PDF
-            dodaj_kod_logo_nr_do_pdf(rysunek_pdf, sciezka_kreskowy_png, sciezka_docelowa, numer_zlecenia)
+            dodaj_kod_logo_nr_do_pdf(rysunek_pdf, sciezka_kreskowy_png, sciezka_docelowa, numer_zlecenia, pusty)
 
 # Ścieżki katalogów
 katalog_pdf = 'rysunki'
